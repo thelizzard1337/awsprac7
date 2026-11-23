@@ -36,7 +36,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --stack-name p7-app \
-            --template-file infra/stack.yaml \
+            --template-file stack.yaml \
             --parameter-overrides \
               RepoUri=${{ vars.ECR_REPO }} \
               ImageTag=${{ github.sha }} \

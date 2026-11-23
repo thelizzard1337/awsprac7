@@ -1,0 +1,44 @@
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -v
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Build and push image
+        run: |
+          REPO=${{ vars.ECR_REPO }}
+          aws ecr get-login-password --region ${{ vars.AWS_REGION }} \
+            | docker login --username AWS --password-stdin ${REPO%%/*}
+          docker build -t $REPO:${{ github.sha }} .
+          docker push $REPO:${{ github.sha }}
+
+      - name: Deploy CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name p7-app \
+            --template-file infra/stack.yaml \
+            --parameter-overrides \
+              RepoUri=${{ vars.ECR_REPO }} \
+              ImageTag=${{ github.sha }} \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset
